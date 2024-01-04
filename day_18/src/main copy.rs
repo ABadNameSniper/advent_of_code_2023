@@ -1,0 +1,260 @@
+use std::{fs, collections::{VecDeque, HashMap}, ops};
+
+//hmmm... find tiles within a loop you say?
+//Unfortunately my code is structured poorly (hey it's my first year doing AOC, in a language I'm just learning!)
+//So I'll just be copying and pasting parts from day 10 here.
+
+
+
+
+// const THING: HashMap<u8, u8> = HashMap::from([(123, 456)]);
+
+fn main() {
+
+    let tiles: HashMap<u8, (Position, Position)> = HashMap::from([
+        (b'|', (NORTH, SOUTH)),
+        (b'-', (EAST, WEST)),
+        (b'L', (NORTH, EAST)),
+        (b'J', (NORTH, WEST)),
+        (b'7', (WEST, SOUTH)),
+        (b'F', (SOUTH, EAST))
+    ]);
+
+    let input = fs::read_to_string("input2.txt").unwrap();
+
+    let mut dirs: Vec<Position> = Vec::new();
+    let mut amounts: Vec<u8> = Vec::new();
+    let mut edge_colors: Vec<u32> = Vec::new();
+
+
+    let mut last_dir = NO_DIR;
+
+    input
+        .lines()
+        .for_each(|line| {
+            let mut chunks = line.split_ascii_whitespace();
+            dirs.push(
+                match *chunks
+                    .next()
+                    .unwrap()
+                    .as_bytes()
+                    .first()
+                    .unwrap() 
+                {
+                    b'U' => NORTH,
+                    b'R' => EAST,
+                    b'L' => WEST,
+                    b'D' => SOUTH,
+                    _ => NO_DIR
+                }
+            );
+            amounts.push(
+                chunks
+                .next()
+                .unwrap()
+                .parse::<u8>()
+                .unwrap()
+            );
+            
+            edge_colors.push(u32::from_str_radix((chunks
+                    .next()
+                    .unwrap()
+                    .split_at(2)
+                )
+                .1
+                .split_at(6).0,
+            16
+            ).unwrap());
+        });
+
+        //will probably overflow
+        let most_case_scenario = amounts.iter().sum::<u8>() as usize;
+
+        let row: VecDeque<u8> = VecDeque::with_capacity(most_case_scenario);
+        // let mut pipes = VecDeque::from(vec![row.clone(); most_case_scenario]);
+        let mut pipes: VecDeque<VecDeque<_>> = VecDeque::with_capacity(most_case_scenario);
+        let color_row: VecDeque<u32> = VecDeque::with_capacity(most_case_scenario);
+        // let mut colors = VecDeque::from(vec![color_row.clone(); most_case_scenario]);
+        let mut colors: VecDeque<VecDeque<_>> = VecDeque::with_capacity(most_case_scenario);
+
+
+        println!("{:?}", pipes.len());
+        let mut target = Position { y: 0, x: 0};
+
+        for (index, dir) in dirs.iter().enumerate() {
+            let mut pipe = b'*';
+            for (tile, (dir1, dir2)) in tiles.iter() {
+                if (last_dir == *dir1 && dir == dir2) || (last_dir == *dir2 || dir == dir1) {
+                    pipe = *tile;
+                    break;
+                }
+            }
+
+            let horizontal = match *dir {
+                NORTH => false,
+                SOUTH => false,
+                _ => true
+            };
+
+            //probably unnecessary. Start at 1?
+            let mut first = true;
+
+            if horizontal {
+                if *dir == WEST && target.x < 0 {
+                    for (index, row) in pipes.iter_mut().enumerate() {
+                        row.push_front(b'A');
+                        colors[index].push_front(b'A' as u32);
+                    }
+                } else if *dir == EAST && target.x == pipes.front().unwrap().len() as isize {
+                    for (index, row) in pipes.iter_mut().enumerate() {
+                        row.push_back(0);
+                        colors[index].push_front(b'A' as u32);
+                    }
+                }
+                for _ in 0..amounts[index] {
+                    
+                    pipes[target] = if first { pipe } else { b'-' };
+                    colors[target] = edge_colors[index];
+                    first = false;
+                    target = target + *dir;
+                    
+                    if *dir == WEST && target.x < 0 {
+                        for (index, row) in pipes.iter_mut().enumerate() {
+                            row.push_front(b'A');
+                            colors[index].push_front(b'A' as u32);
+                        }
+                    } else if *dir == EAST && target.x == pipes.front().unwrap().len() as isize {
+                        for (index, row) in pipes.iter_mut().enumerate() {
+                            row.push_back(0);
+                            colors[index].push_front(b'A' as u32);
+                        }
+                    }
+                }
+            } else {
+                if *dir == NORTH && target.y < 0 {
+                    println!("increased top");
+                    pipes.push_front(row.clone());
+                    colors.push_front(color_row.clone());
+                } else if *dir == SOUTH && target.y == pipes.len() as isize {
+                    println!("increased bottom");
+                    pipes.push_back(row.clone());
+                    colors.push_back(color_row.clone());
+                }
+                for _ in 0..amounts[index] {
+                    
+                    // println!("{}, {}", pipes.len(), target);
+                    // println!("{}", pipes[target.y as usize].len());
+                    pipes[target] = if first { pipe } else { b'|' };
+                    colors[target] = edge_colors[index];
+                    first = false;
+                    target = target + *dir;
+
+                    if *dir == NORTH && target.y < 0 {
+                        println!("increased top");
+                        pipes.push_front(row.clone());
+                        colors.push_front(color_row.clone());
+                    } else if *dir == SOUTH && target.y == pipes.len() as isize {
+                        println!("increased bottom");
+                        pipes.push_back(row.clone());
+                        colors.push_back(color_row.clone());
+                    }
+                }
+            }
+
+            // println!("{}, {}", last_dir, dir);
+            // println!("{}", pipe as char);
+
+            last_dir = *dir;
+        }
+
+    println!("Height: {}, length: {}", pipes.len(), pipes[0].len());
+
+    let finished = pipes
+    .iter()
+    .collect::<Vec<_>>()
+    .iter()
+    .map(|line| 
+        std::str::from_utf8(
+            line
+            .iter()
+            .map(|byte_ref| *byte_ref)
+            .collect::<Vec<_>>()
+            .as_slice()
+        )
+        .unwrap()
+        .to_owned()
+        + "\n"
+    )
+    .collect::<String>();
+
+    println!("{}", finished);
+}
+
+const NO_DIR: Position = Position { y: 0, x: 0 };
+
+const NORTH: Position = Position { y: -1, x:  0 };
+const EAST: Position = Position  { y:  0, x:  1 };
+const SOUTH: Position = Position { y:  1, x:  0 };
+const WEST: Position = Position  { y:  0, x: -1 };
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct Position {
+    y: isize,
+    x: isize
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Position Y:{}, X:{}", self.y, self.x)
+    }
+}
+
+impl ops::Add<Position> for Position {
+    type Output = Position;
+    fn add(self, rhs: Position) -> Self::Output {
+        return Position { 
+            x: self.x + rhs.x, 
+            y: self.y + rhs.y
+        }
+    }
+}
+
+impl ops::Index<Position> for VecDeque<VecDeque<u8>>{
+    type Output = u8;
+    fn index(&self, index: Position) -> &Self::Output {
+        //not the most eloquent, but I can't return an option!
+        if index.y as usize >= self.len() || index.y < 0 { return &u8::MAX }
+        if index.x as usize >= self[0].len() || index.x < 0 {return &u8::MAX }
+        return &self[index.y as usize][index.x as usize];
+    }
+}
+
+impl ops::IndexMut<Position> for VecDeque<VecDeque<u8>> {
+    fn index_mut(&mut self, index: Position) -> &mut Self::Output {
+        if index.x < 0 || index.y < 0 || index.y as usize > self.len() || index.x as usize > self[0].len() {
+            panic!("Position Index is not in bounds! Index y:{}, x:{} vs Grid Size y:{} x:{}", index.y, index.x, self.len(), self[0].len());
+        } 
+        &mut self[index.y as usize][index.x as usize]
+    }
+}
+
+
+
+impl ops::Index<Position> for VecDeque<VecDeque<u32>>{
+    type Output = u32;
+    fn index(&self, index: Position) -> &Self::Output {
+        //not the most eloquent, but I can't return an option!
+        if index.y as usize >= self.len() || index.y < 0 { return &u32::MAX }
+        if index.x as usize >= self[0].len() || index.x < 0 {return &u32::MAX }
+        return &self[index.y as usize][index.x as usize];
+    }
+}
+
+impl ops::IndexMut<Position> for VecDeque<VecDeque<u32>> {
+    fn index_mut(&mut self, index: Position) -> &mut Self::Output {
+        if index.x < 0 || index.y < 0 || index.y as usize > self.len() || index.x as usize > self[0].len() {
+            panic!("Position Index is not in bounds! Index y:{}, x:{} vs Grid Size y:{} x:{}", index.y, index.x, self.len(), self[0].len());
+        } 
+        &mut self[index.y as usize][index.x as usize]
+    }
+}

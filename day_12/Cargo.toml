@@ -1,0 +1,20 @@
+[package]
+name = "day_11"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "part1"
+path = "src/part1.rs"
+
+[[bin]]
+name = "part1_1"
+path = "src/part1_1.rs"
+
+[[bin]]
+name = "part2"
+path = "src/part2.rs"
+
+[dependencies]
+rayon = "1.8.0"
+regex = "1.10.2"
